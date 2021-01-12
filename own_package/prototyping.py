@@ -9,7 +9,7 @@ from sklearn.model_selection import RandomizedSearchCV
 from sklearn.metrics import make_scorer
 import pickle
 
-from own_package.pipeline_helpers import preprocess_pipeline_1, preprocess_pipeline_2
+from own_package.pipeline_helpers import preprocess_pipeline_1, preprocess_pipeline_2, preprocess_pipeline_3
 from own_package.others import create_results_directory
 
 
@@ -55,6 +55,8 @@ def lvl1_randomsearch(rawdf, results_dir, preprocess_pipeline_choice):
         preprocess_pipeline = preprocess_pipeline_1()
     elif preprocess_pipeline_choice == 2:
         preprocess_pipeline = preprocess_pipeline_2()
+    elif preprocess_pipeline_choice == 3:
+        preprocess_pipeline = preprocess_pipeline_3(rawdf)
 
     for model_name in model_store:
         model = Pipeline([

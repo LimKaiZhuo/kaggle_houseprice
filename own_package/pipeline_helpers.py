@@ -26,7 +26,61 @@ class FeatureSelector(BaseEstimator, TransformerMixin):
         return X[self.feature_names]
 
 
-class TypePdTransformer(BaseEstimator, TransformerMixin):
+class PdFunctionTransformer(BaseEstimator, TransformerMixin):
+    """ A DataFrame transformer providing imputation or function application
+
+    Parameters
+    ----------
+    impute : Boolean, default False
+
+    func : function that acts on an array of the form [n_elements, 1]
+        if impute is True, functions must return a float number, otherwise
+        an array of the form [n_elements, 1]
+
+    """
+
+    def __init__(self, func, impute=False):
+        self.func = func
+        self.impute = impute
+        self.series = pd.Series()
+
+    def transform(self, X, **transformparams):
+        """ Transforms a DataFrame
+
+        Parameters
+        ----------
+        X : DataFrame
+
+        Returns
+        ----------
+        trans : pandas DataFrame
+            Transformation of X
+        """
+
+        if self.impute:
+            trans = pd.DataFrame(X).fillna(self.series).copy()
+        else:
+            trans = pd.DataFrame(X).apply(self.func).copy()
+        return trans
+
+    def fit(self, X, y=None, **fitparams):
+        """ Fixes the values to impute or does nothing
+
+        Parameters
+        ----------
+        X : pandas DataFrame
+        y : not used, API requirement
+
+        Returns
+        ----------
+        self
+        """
+
+        if self.impute:
+            self.series = pd.DataFrame(X).apply(self.func).squeeze()
+        return self
+
+class PdTypeTransformer(BaseEstimator, TransformerMixin):
     def __init__(self, type_):
         self.type_ = type_
 
@@ -35,6 +89,27 @@ class TypePdTransformer(BaseEstimator, TransformerMixin):
 
     def transform(self, X):
         return X.astype(self.type_)
+
+
+class PdSumTransformer(BaseEstimator, TransformerMixin):
+
+    def __init__(self, series_name, weights=None):
+        """
+        series_name: name of the new summed column
+        weights: weights when summing the columns together
+        """
+        self.series_name = series_name
+        self.weights = weights
+
+    def fit(self, X, y=None):
+        if self.weights:
+            assert X.shape[1] == len(self.weights)  # no. of columns = no. of weights
+        return self
+
+    def transform(self, X):
+        if self.weights:
+            X = X*self.weights
+        return X.sum(axis=1).to_frame(self.series_name)
 
 
 class Binarizer(BaseEstimator, TransformerMixin):
@@ -57,7 +132,7 @@ class GroupingTransformer(BaseEstimator, TransformerMixin):
         self.group_name = 'other'
 
     def fit(self, X, y=None):
-        X = X.fillna('None')
+        X = X.fillna('None')  # In case there is still any nan left
         n_samples, n_features = X.shape
         counts = []
         groups = []
@@ -118,7 +193,7 @@ def preprocess_pipeline_1():
     # This is the only categorical column that has all numbers so must convert to string first.
     p_mssubclass_onehot = Pipeline([
         ('sel_mssubclass', FeatureSelector(['MSSubClass'])),
-        ('float2int', TypePdTransformer(str)),
+        ('float2int', PdTypeTransformer(str)),
         ('infrequent_grouping', GroupingTransformer(min_freq=0.05)),
         ('onehot', OneHotEncoder(handle_unknown='ignore', sparse=False))
     ])
@@ -208,7 +283,7 @@ def preprocess_pipeline_2():
     # This is the only categorical column that has all numbers so must convert to string first.
     p_mssubclass_onehot = Pipeline([
         ('sel_mssubclass', FeatureSelector(['MSSubClass'])),
-        ('float2int', TypePdTransformer(str)),
+        ('float2int', PdTypeTransformer(str)),
         ('infrequent_grouping', GroupingTransformer(min_freq=0.05)),
         ('onehot', OneHotEncoder(handle_unknown='ignore', sparse=False))
     ])
@@ -270,3 +345,111 @@ def preprocess_pipeline_2():
     ])
 
     return p_preprocess
+
+
+def preprocess_pipeline_3(rawdf=None):
+    '''
+    2) Neighborhood binning to ordinal
+    3) Combine bathrooms.
+    :return:
+    '''
+    # Ratio or Interval pipeline: Numeric pipeline
+    numeric_columns = ['LotFrontage', 'LotArea', 'MasVnrArea', 'BsmtFinSF1', 'BsmtUnfSF', '1stFlrSF', '2ndFlrSF',
+                       'LowQualFinSF', 'GrLivArea',
+                       'BedroomAbvGr', 'KitchenAbvGr', 'TotRmsAbvGrd', 'Fireplaces', 'GarageArea', 'WoodDeckSF',
+                       'OpenPorchSF', 'EnclosedPorch', '3SsnPorch', 'ScreenPorch',
+                       'OverallQual', 'OverallCond']
+    p_numeric = Pipeline([
+        ('sel_numeric', FeatureSelector(numeric_columns)),
+        ('fillna_with_0', SimpleImputer())
+    ])
+
+    # Weighted sum of bathrooms
+    bathroom_columns = ['BsmtFullBath', 'BsmtHalfBath', 'FullBath', 'HalfBath',]
+    p_Bathrooms = Pipeline([
+        ('sel_Bathrooms', FeatureSelector(bathroom_columns)),
+        ('fillna_with_0', PdFunctionTransformer(func=pd.Series.mean, impute=True)),
+        ('weighted_sum', PdSumTransformer(series_name='TotalBathrooms', weights=[1,0.5,1,0.5]))
+    ])
+
+    # Onehot with binning infrequents
+    cat_onehot_columns = ['MSZoning', 'Street', 'BldgType', 'MasVnrType', 'GarageType', 'Fence',
+                          'SaleType', 'SaleCondition',
+
+                          'LandContour', 'LotConfig', 'Condition1', 'HouseStyle', 'RoofStyle',
+                          'Exterior1st', 'Foundation', 'Electrical']
+
+    p_cat_onehot = Pipeline([
+        ('sel_cat', FeatureSelector(cat_onehot_columns)),
+        ('imputation', PdFunctionTransformer(func=pd.Series.mode, impute=True)),
+        ('infrequent_grouping', GroupingTransformer(min_freq=0.05)),
+        ('onehot', OneHotEncoder(handle_unknown='ignore', sparse=False))
+    ])
+
+    # This is the only categorical column that has all numbers so must convert to string first.
+    p_mssubclass_onehot = Pipeline([
+        ('sel_mssubclass', FeatureSelector(['MSSubClass'])),
+        ('float2int', PdTypeTransformer(str)),
+        ('infrequent_grouping', GroupingTransformer(min_freq=0.05)),
+        ('onehot', OneHotEncoder(handle_unknown='ignore', sparse=False))
+    ])
+
+    # Ordinal transformations
+    map_alley = {'Grvl': 0, 'Pave': 0}  # Missing values will be filled with -1
+    map_LotShape = {'IR3': 0, 'IR2': 1, 'IR1': 2, 'Reg': 3}
+    map_LandSlope = {'Gtl': 0, 'Mod': 1, 'Sev': 2}
+    map_po_ex = {'Po': 0, 'Fa': 1, 'TA': 2, 'Gd': 3, 'Ex': 4}
+    map_no_gd = {'No': 0, 'Mn': 1, 'Av': 2, 'Gd': 3}
+    map_unf_glq = {'Unf': 0, 'LwQ': 1, 'Rec': 2, 'BLQ': 3, 'ALQ': 4, 'GLQ': 5}
+    map_n_y = {'N': 0, 'Y': 1}
+    map_Functional = {'Typ': 0, 'Min1': 1, 'Min2': 2, 'Mod': 3, 'Maj1': 4, 'Maj2': 5, 'Sev': 6, 'Sal': 7}
+    map_GarageFinish = {'Unf': 0, 'RFn': 1, 'Fin': 2}
+    map_PavedDrive = {'N': 0, 'P': 1, 'Y': 2}
+    map_MiscFeature = {'Shed': 0}
+    name_store = [['MeadowV', 'IDOTRR', 'BrDale', 'BrkSide', 'Edwards'],
+                  ['OldTown', 'Sawyer', 'Blueste', 'SWISU', 'NPkVill'],
+                  ['NAmes', 'Mitchel', 'SawyerW', 'NWAmes', 'Gilbert'],
+                  ['Blmngtn', 'CollgCr', 'Crawfor', 'ClearCr', 'Somerst'],
+                  ['Veenker', 'Timber', 'StoneBr', 'NridgHt', 'NoRidge']]
+    map_Neighborhood = {name: value for value, name_group in enumerate(name_store) for name in name_group}
+
+    ordinal_columns = ['Alley', 'LotShape', 'LandSlope', 'ExterQual', 'ExterCond', 'BsmtQual', 'BsmtCond',
+                       'BsmtExposure', 'BsmtFinType1', 'HeatingQC', 'CentralAir', 'KitchenQual',
+                       'Functional', 'FireplaceQu', 'GarageFinish', 'GarageQual', 'GarageCond',
+                       'PavedDrive', 'MiscFeature', 'Neighborhood']
+    ordinal_mappings = [map_alley, map_LotShape, map_LandSlope, map_po_ex, map_po_ex, map_po_ex, map_po_ex,
+                        map_no_gd, map_unf_glq, map_po_ex, map_n_y, map_po_ex,
+                        map_Functional, map_po_ex, map_GarageFinish, map_po_ex, map_po_ex,
+                        map_PavedDrive, map_MiscFeature, map_Neighborhood]
+
+    ordinal_mappings = [{'col': col, 'mapping': mapping} for col, mapping in zip(ordinal_columns, ordinal_mappings)]
+
+    p_ordinal = Pipeline([
+        ('sel_ordinal', FeatureSelector(ordinal_columns)),
+        ('ordinal', ce.OrdinalEncoder(mapping=ordinal_mappings))
+    ])
+
+    # Bin pool to yes or no only
+    p_PoolArea_binary = Pipeline([
+        ('sel_PoolArea', FeatureSelector('PoolArea')),
+        ('binary', Binarizer(condition=lambda x: x > 0, name='PoolArea'))
+    ])
+
+    # Time information
+    time_columns = ['YearBuilt', 'YearRemodAdd', 'MoSold', 'YrSold']
+    p_time = Pipeline([
+        ('sel_PoolArea', FeatureSelector(time_columns))
+    ])
+
+    p_preprocess = FeatureUnion([
+        ('p_numeric', p_numeric),
+        ('p_Bathroom', p_Bathrooms),
+        ('p_cat_onehot', p_cat_onehot),
+        ('p_Mssubclass_onehot', p_mssubclass_onehot),
+        ('p_ordinal', p_ordinal),
+        ('p_PoolArea_binary', p_PoolArea_binary),
+        ('p_time', p_time),
+    ])
+
+    return p_preprocess
+
