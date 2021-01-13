@@ -8,7 +8,7 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline, FeatureUnion
 from sklearn.model_selection import RandomizedSearchCV
-from sklearn.preprocessing import OneHotEncoder
+from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder
 from sklearn.metrics import make_scorer
 import pickle
 
@@ -203,7 +203,7 @@ class GroupingTransformer(BaseEstimator, TransformerMixin):
         return X_t
 
 
-def preprocess_pipeline_1():
+def preprocess_pipeline_1(rawdf):
     # Ratio or Interval pipeline: Numeric pipeline
     numeric_columns = ['LotFrontage', 'LotArea', 'MasVnrArea', 'BsmtFinSF1', 'BsmtUnfSF', '1stFlrSF', '2ndFlrSF',
                        'LowQualFinSF', 'GrLivArea', 'BsmtFullBath', 'BsmtHalfBath', 'FullBath', 'HalfBath',
@@ -289,7 +289,7 @@ def preprocess_pipeline_1():
     return p_preprocess
 
 
-def preprocess_pipeline_2():
+def preprocess_pipeline_2(rawdf):
     '''
     Neighborhood binning to ordinal
     :return:
@@ -613,3 +613,129 @@ def preprocess_pipeline_4(rawdf=None):
     ])
 
     return p_preprocess
+
+
+def preprocess_pipeline_5(rawdf=None):
+    '''
+    2) Neighborhood binning to ordinal
+    3) Combine bathrooms.
+    4) Better imputation of LotFrontage based on groupby Neighborhood. Added new TotalSF area feature.
+    5) Ordinal transformation instead of one-hot
+    :return:
+    '''
+    # Ratio or Interval pipeline: Numeric pipeline
+    numeric_columns = ['LotArea', 'MasVnrArea', 'BsmtFinSF1', 'BsmtUnfSF', '1stFlrSF', '2ndFlrSF',
+                       'LowQualFinSF', 'GrLivArea',
+                       'BedroomAbvGr', 'KitchenAbvGr', 'TotRmsAbvGrd', 'Fireplaces', 'GarageArea', 'WoodDeckSF',
+                       'OpenPorchSF', 'EnclosedPorch', '3SsnPorch', 'ScreenPorch',
+                       'OverallQual', 'OverallCond']
+    p_numeric = Pipeline([
+        ('sel_numeric', FeatureSelector(numeric_columns)),
+        ('fillna_with_0', SimpleImputer())
+    ])
+
+    p_LotFrontage = Pipeline([
+        ('groupbyimputer',
+         PdWithinGroupImputerTransformer(func=np.mean, groupby='Neighborhood', x_names=['LotFrontage']))
+    ])
+
+    # Total SF area
+    sf_columns = ['TotalBsmtSF', '1stFlrSF', '2ndFlrSF']
+    p_SF = Pipeline([
+        ('sel_SF', FeatureSelector(sf_columns)),
+        ('fillna', PdFunctionTransformer(func=pd.Series.mean, impute=True)),
+        ('sum', PdSumTransformer(series_name='TotalSF', weights=[1, 1, 1]))
+    ])
+
+    # Weighted sum of bathrooms
+    bathroom_columns = ['BsmtFullBath', 'BsmtHalfBath', 'FullBath', 'HalfBath', ]
+    p_Bathrooms = Pipeline([
+        ('sel_Bathrooms', FeatureSelector(bathroom_columns)),
+        ('fillna_with_0', PdFunctionTransformer(func=np.min, impute=True)),
+        ('weighted_sum', PdSumTransformer(series_name='TotalBathrooms', weights=[1, 0.5, 1, 0.5]))
+    ])
+
+    # Onehot with binning infrequents
+    cat_onehot_columns = ['MSZoning', 'Street', 'BldgType', 'MasVnrType', 'GarageType', 'Fence',
+                          'SaleType', 'SaleCondition',
+
+                          'LandContour', 'LotConfig', 'Condition1', 'HouseStyle', 'RoofStyle',
+                          'Exterior1st', 'Foundation', 'Electrical']
+
+    p_cat_onehot = Pipeline([
+        ('sel_cat', FeatureSelector(cat_onehot_columns)),
+        ('imputation', PdFunctionTransformer(func=pd.Series.mode, impute=True)),
+        ('infrequent_grouping', GroupingTransformer(min_freq=0.05)),
+        ('onehot', OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1))
+    ])
+
+    # This is the only categorical column that has all numbers so must convert to string first.
+    p_mssubclass_onehot = Pipeline([
+        ('sel_mssubclass', FeatureSelector(['MSSubClass'])),
+        ('float2int', PdTypeTransformer(str)),
+        ('infrequent_grouping', GroupingTransformer(min_freq=0.05)),
+        ('onehot', OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1))
+    ])
+
+    # Ordinal transformations
+    map_alley = {'Grvl': 0, 'Pave': 0}  # Missing values will be filled with -1
+    map_LotShape = {'IR3': 0, 'IR2': 1, 'IR1': 2, 'Reg': 3}
+    map_LandSlope = {'Gtl': 0, 'Mod': 1, 'Sev': 2}
+    map_po_ex = {'Po': 0, 'Fa': 1, 'TA': 2, 'Gd': 3, 'Ex': 4}
+    map_no_gd = {'No': 0, 'Mn': 1, 'Av': 2, 'Gd': 3}
+    map_unf_glq = {'Unf': 0, 'LwQ': 1, 'Rec': 2, 'BLQ': 3, 'ALQ': 4, 'GLQ': 5}
+    map_n_y = {'N': 0, 'Y': 1}
+    map_Functional = {'Typ': 0, 'Min1': 1, 'Min2': 2, 'Mod': 3, 'Maj1': 4, 'Maj2': 5, 'Sev': 6, 'Sal': 7}
+    map_GarageFinish = {'Unf': 0, 'RFn': 1, 'Fin': 2}
+    map_PavedDrive = {'N': 0, 'P': 1, 'Y': 2}
+    map_MiscFeature = {'Shed': 0}
+    name_store = [['MeadowV', 'IDOTRR', 'BrDale', 'BrkSide', 'Edwards'],
+                  ['OldTown', 'Sawyer', 'Blueste', 'SWISU', 'NPkVill'],
+                  ['NAmes', 'Mitchel', 'SawyerW', 'NWAmes', 'Gilbert'],
+                  ['Blmngtn', 'CollgCr', 'Crawfor', 'ClearCr', 'Somerst'],
+                  ['Veenker', 'Timber', 'StoneBr', 'NridgHt', 'NoRidge']]
+    map_Neighborhood = {name: value for value, name_group in enumerate(name_store) for name in name_group}
+
+    ordinal_columns = ['Alley', 'LotShape', 'LandSlope', 'ExterQual', 'ExterCond', 'BsmtQual', 'BsmtCond',
+                       'BsmtExposure', 'BsmtFinType1', 'HeatingQC', 'CentralAir', 'KitchenQual',
+                       'Functional', 'FireplaceQu', 'GarageFinish', 'GarageQual', 'GarageCond',
+                       'PavedDrive', 'MiscFeature', 'Neighborhood']
+    ordinal_mappings = [map_alley, map_LotShape, map_LandSlope, map_po_ex, map_po_ex, map_po_ex, map_po_ex,
+                        map_no_gd, map_unf_glq, map_po_ex, map_n_y, map_po_ex,
+                        map_Functional, map_po_ex, map_GarageFinish, map_po_ex, map_po_ex,
+                        map_PavedDrive, map_MiscFeature, map_Neighborhood]
+
+    ordinal_mappings = [{'col': col, 'mapping': mapping} for col, mapping in zip(ordinal_columns, ordinal_mappings)]
+
+    p_ordinal = Pipeline([
+        ('sel_ordinal', FeatureSelector(ordinal_columns)),
+        ('ordinal', ce.OrdinalEncoder(mapping=ordinal_mappings))
+    ])
+
+    # Bin pool to yes or no only
+    p_PoolArea_binary = Pipeline([
+        ('sel_PoolArea', FeatureSelector('PoolArea')),
+        ('binary', Binarizer(condition=lambda x: x > 0, name='PoolArea'))
+    ])
+
+    # Time information
+    time_columns = ['YearBuilt', 'YearRemodAdd', 'MoSold', 'YrSold']
+    p_time = Pipeline([
+        ('sel_PoolArea', FeatureSelector(time_columns))
+    ])
+
+    p_preprocess = FeatureUnion([
+        ('p_numeric', p_numeric),
+        ('p_LotFrontage', p_LotFrontage),
+        ('p_TotalSF', p_SF),
+        ('p_Bathroom', p_Bathrooms),
+        ('p_cat_onehot', p_cat_onehot),
+        ('p_Mssubclass_onehot', p_mssubclass_onehot),
+        ('p_ordinal', p_ordinal),
+        ('p_PoolArea_binary', p_PoolArea_binary),
+        ('p_time', p_time),
+    ])
+
+    return p_preprocess
+
+

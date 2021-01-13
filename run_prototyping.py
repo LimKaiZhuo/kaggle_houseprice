@@ -6,7 +6,7 @@ from own_package.analysis import analyze_randomsearchresults
 def selector(case):
     if case == 1:
         rawdate = pd.read_csv('./inputs/train.csv')
-        lvl1_randomsearch(rawdate, './results/lvl1_randomsearch_pp4', preprocess_pipeline_choice=4)
+        lvl1_randomsearch(rawdate, './results/lvl1_randomsearch_pp5', preprocess_pipeline_choice=5)
     elif case == 1.1:
         analyze_randomsearchresults([f'./results/lvl1_randomsearch_pp{x}' for x in range(1, 5)],
                                  [f'pp{x}' for x in range(1, 5)])
@@ -23,4 +23,4 @@ def selector(case):
                      param_dir='./results/lvl1_randomsearch_pp4/results_store.pkl', passthrough=False)
 
 
-selector(3)
+selector(1)

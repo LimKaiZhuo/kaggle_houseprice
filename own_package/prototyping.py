@@ -11,13 +11,27 @@ from sklearn.metrics import make_scorer
 import pickle
 
 from own_package.pipeline_helpers import preprocess_pipeline_1, preprocess_pipeline_2, \
-    preprocess_pipeline_3, preprocess_pipeline_4
+    preprocess_pipeline_3, preprocess_pipeline_4, preprocess_pipeline_5
 from own_package.others import create_results_directory
 
 
 def rmsle(y, y0):
     assert len(y) == len(y0)
     return np.sqrt(np.mean(np.power(np.log1p(y) - np.log1p(y0), 2)))
+
+
+def preprocess_pipeline_selector(preprocess_pipeline_choice, rawdf=None):
+    if preprocess_pipeline_choice == 1:
+        preprocess_pipeline = preprocess_pipeline_1(rawdf)
+    elif preprocess_pipeline_choice == 2:
+        preprocess_pipeline = preprocess_pipeline_2(rawdf)
+    elif preprocess_pipeline_choice == 3:
+        preprocess_pipeline = preprocess_pipeline_3(rawdf)
+    elif preprocess_pipeline_choice == 4:
+        preprocess_pipeline = preprocess_pipeline_4(rawdf)
+    elif preprocess_pipeline_choice == 5:
+        preprocess_pipeline = preprocess_pipeline_5(rawdf)
+    return preprocess_pipeline
 
 
 def lvl1_randomsearch(rawdf, results_dir, preprocess_pipeline_choice):
@@ -53,14 +67,7 @@ def lvl1_randomsearch(rawdf, results_dir, preprocess_pipeline_choice):
     }
     results_store = {}
 
-    if preprocess_pipeline_choice == 1:
-        preprocess_pipeline = preprocess_pipeline_1()
-    elif preprocess_pipeline_choice == 2:
-        preprocess_pipeline = preprocess_pipeline_2()
-    elif preprocess_pipeline_choice == 3:
-        preprocess_pipeline = preprocess_pipeline_3(rawdf)
-    elif preprocess_pipeline_choice == 4:
-        preprocess_pipeline = preprocess_pipeline_4(rawdf)
+    preprocess_pipeline = preprocess_pipeline_selector(preprocess_pipeline_choice, rawdf)
 
     for model_name in model_store:
         model = Pipeline([
@@ -101,14 +108,7 @@ def lvl2_ridgecv(rawdf, results_dir, preprocess_pipeline_choice, param_dir, pass
     model_object = {k: model_object[k].set_params(**{kk.split('__')[1]: vv for kk, vv in v.loc[0, 'params'].items()})
                     for k, v in model_results.items()}
 
-    if preprocess_pipeline_choice == 1:
-        preprocess_pipeline = preprocess_pipeline_1()
-    elif preprocess_pipeline_choice == 2:
-        preprocess_pipeline = preprocess_pipeline_2()
-    elif preprocess_pipeline_choice == 3:
-        preprocess_pipeline = preprocess_pipeline_3(rawdf)
-    elif preprocess_pipeline_choice == 4:
-        preprocess_pipeline = preprocess_pipeline_4(rawdf)
+    preprocess_pipeline = preprocess_pipeline_selector(preprocess_pipeline_choice)
 
     lvl1_pipeline = [
         (model_name,
@@ -145,14 +145,7 @@ def lvl2_xgb_randomsearch(rawdf, results_dir, preprocess_pipeline_choice, param_
     model_object = {k: model_object[k].set_params(**{kk.split('__')[1]: vv for kk, vv in v.loc[0, 'params'].items()})
                     for k, v in model_results.items()}
 
-    if preprocess_pipeline_choice == 1:
-        preprocess_pipeline = preprocess_pipeline_1()
-    elif preprocess_pipeline_choice == 2:
-        preprocess_pipeline = preprocess_pipeline_2()
-    elif preprocess_pipeline_choice == 3:
-        preprocess_pipeline = preprocess_pipeline_3(rawdf)
-    elif preprocess_pipeline_choice == 4:
-        preprocess_pipeline = preprocess_pipeline_4(rawdf)
+    preprocess_pipeline = preprocess_pipeline_selector(preprocess_pipeline_choice)
 
     lvl1_pipeline = [
         (model_name,
@@ -181,5 +174,6 @@ def lvl2_xgb_randomsearch(rawdf, results_dir, preprocess_pipeline_choice, param_
 
     est.fit(x_train, y_train)
     score = {'lvl2_xgb': est.cv_results_}
+    results_dir = create_results_directory(results_dir)
     with open(f'{results_dir}/results_store.pkl', 'wb') as f:
         pickle.dump(score, f)
