@@ -126,3 +126,60 @@ def lvl2_ridgecv(rawdf, results_dir, preprocess_pipeline_choice, param_dir, pass
     results_dir = create_results_directory(results_dir)
     with open(f'{results_dir}/results_store.pkl', 'wb') as f:
         pickle.dump(score, f)
+
+
+def lvl2_xgb_randomsearch(rawdf, results_dir, preprocess_pipeline_choice, param_dir, passthrough):
+    x_train = rawdf.iloc[:, :-1]
+    y_train = rawdf.iloc[:, -1]
+    model_store = ['rf', 'et', 'xgb']
+    model_object = {
+        'xgb': XGBRegressor(),
+        'rf': RandomForestRegressor(),
+        'et': ExtraTreesRegressor()
+    }
+
+    with open(param_dir, 'rb') as f:
+        model_results = pickle.load(f)
+    model_results = {k: pd.DataFrame(v).sort_values('mean_test_score', ascending=False) for k, v in
+                     model_results.items()}
+    model_object = {k: model_object[k].set_params(**{kk.split('__')[1]: vv for kk, vv in v.loc[0, 'params'].items()})
+                    for k, v in model_results.items()}
+
+    if preprocess_pipeline_choice == 1:
+        preprocess_pipeline = preprocess_pipeline_1()
+    elif preprocess_pipeline_choice == 2:
+        preprocess_pipeline = preprocess_pipeline_2()
+    elif preprocess_pipeline_choice == 3:
+        preprocess_pipeline = preprocess_pipeline_3(rawdf)
+    elif preprocess_pipeline_choice == 4:
+        preprocess_pipeline = preprocess_pipeline_4(rawdf)
+
+    lvl1_pipeline = [
+        (model_name,
+         Pipeline([
+             ('preprocess', preprocess_pipeline),
+             (model_name, model_object[model_name])
+         ])
+         )
+        for model_name in model_store]
+    final_estimator_params = {'final_estimator__n_estimators': scipy.stats.randint(150, 1000),
+                              'final_estimator__learning_rate': scipy.stats.uniform(0.01, 0.59),
+                              'final_estimator__subsample': scipy.stats.uniform(0.3, 0.6),
+                              'final_estimator__max_depth': scipy.stats.randint(1, 16),
+                              'final_estimator__colsample_bytree': scipy.stats.uniform(0.5, 0.4),
+                              'final_estimator__min_child_weight': [1, 2, 3, 4],
+                              'final_estimator__gamma': scipy.stats.expon(scale=0.05),
+                              }
+    est = StackingRegressor(estimators=lvl1_pipeline, final_estimator=XGBRegressor(), passthrough=passthrough)
+    est = RandomizedSearchCV(est,
+                             param_distributions=final_estimator_params,
+                             cv=5,
+                             n_iter=100,
+                             scoring=make_scorer(rmsle, greater_is_better=False),
+                             verbose=1,
+                             n_jobs=-1)
+
+    est.fit(x_train, y_train)
+    score = {'lvl2_xgb': est.cv_results_}
+    with open(f'{results_dir}/results_store.pkl', 'wb') as f:
+        pickle.dump(score, f)

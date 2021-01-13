@@ -1,5 +1,5 @@
 import pandas as pd
-from own_package.prototyping import lvl1_randomsearch, lvl2_ridgecv
+from own_package.prototyping import lvl1_randomsearch, lvl2_ridgecv, lvl2_xgb_randomsearch
 from own_package.analysis import analyze_randomsearchresults
 
 
@@ -14,10 +14,13 @@ def selector(case):
         rawdate = pd.read_csv('./inputs/train.csv')
         lvl2_ridgecv(rawdate, './results/lvl2np_ridgecv_pp4', preprocess_pipeline_choice=4,
                      param_dir='./results/lvl1_randomsearch_pp4/results_store.pkl', passthrough=False)
-        lvl2_ridgecv(rawdate, './results/lvl2pt_ridgecv_pp4', preprocess_pipeline_choice=4,
-                     param_dir='./results/lvl1_randomsearch_pp4/results_store.pkl', passthrough=True)
     elif case ==2.1:
         pass
-        # analyze_results(['./results/lvl2np_ridgecv_pp4'], 'lvl2npRCV')
+        analyze_randomsearchresults(['./results/lvl2np_ridgecv_pp4'], 'lvl2npRCV')
+    elif case == 3:
+        rawdate = pd.read_csv('./inputs/train.csv')
+        lvl2_xgb_randomsearch(rawdate, './results/lvl2np_xgb_pp4', preprocess_pipeline_choice=4,
+                     param_dir='./results/lvl1_randomsearch_pp4/results_store.pkl', passthrough=False)
 
-selector(2)
+
+selector(3)

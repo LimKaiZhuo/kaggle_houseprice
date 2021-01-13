@@ -163,13 +163,13 @@ class Binarizer(BaseEstimator, TransformerMixin):
 
 
 class GroupingTransformer(BaseEstimator, TransformerMixin):
-    def __init__(self, *, min_count=0, min_freq=0.0, top_n=0, group_name='other'):
+    def __init__(self, *, min_count=0, min_freq=0.0, top_n=0):
         self.min_count = min_count
         self.min_freq = min_freq
         self.top_n = top_n
-        self.group_name = 'other'
 
     def fit(self, X, y=None):
+        self.group_name = 'Others_'
         X = X.fillna('None')  # In case there is still any nan left
         n_samples, n_features = X.shape
         counts = []
