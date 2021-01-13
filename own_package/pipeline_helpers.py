@@ -4,7 +4,7 @@ import scipy.stats
 import category_encoders as ce
 from xgboost import XGBRegressor
 from collections import Counter
-from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.base import BaseEstimator, TransformerMixin, RegressorMixin, clone
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline, FeatureUnion
 from sklearn.model_selection import RandomizedSearchCV
@@ -24,6 +24,31 @@ class FeatureSelector(BaseEstimator, TransformerMixin):
 
     def transform(self, X):
         return X[self.feature_names]
+
+
+class DebuggerTransformer(BaseEstimator, TransformerMixin):
+    def __init__(self, info=None):
+        self.info = info
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X):
+        return X
+
+
+class FinalFeatureDataframe(BaseEstimator, TransformerMixin):
+    def __init__(self, feature_names):
+        self.feature_names = feature_names
+
+    def fit(self, X, y=None):
+        self.feature_count_ = len(self.feature_names)
+        return self
+
+    def transform(self, X):
+        return pd.DataFrame(X,
+                            columns=[f'{x + 1}_lvl1_' for x in
+                                     range(X.shape[1] - self.feature_count_)] + self.feature_names)
 
 
 class PdFunctionTransformer(BaseEstimator, TransformerMixin):
@@ -201,6 +226,43 @@ class GroupingTransformer(BaseEstimator, TransformerMixin):
             mask = np.isin(X_t.iloc[:, i], self.groups_[i])
             X_t.iloc[mask, i] = self.group_name
         return X_t
+
+
+class AveragingModels(BaseEstimator, RegressorMixin, TransformerMixin):
+    def __init__(self, models):
+        self.models = models
+
+    # we define clones of the original models to fit the data in
+    def fit(self, X, y):
+        self.models_ = [clone(x) for x in self.models]
+
+        # Train cloned base models
+        for model in self.models_:
+            model.fit(X, y)
+
+        return self
+
+    # Now we do the predictions for cloned models and average them
+    def predict(self, X):
+        predictions = np.column_stack([
+            model.predict(X) for model in self.models_
+        ])
+        return np.mean(predictions, axis=1)
+
+
+def final_est_pipeline(feature_names, preprocess_pipeline, no_of_lvl1):
+    lvl1_pred = Pipeline([
+        ('create_final_df', FinalFeatureDataframe(feature_names)),
+        ('lvl_1_pred', FeatureSelector([f'{x+1}_lvl1_' for x in range(no_of_lvl1)])),
+    ])
+    preprocess = Pipeline([
+        ('create_final_df', FinalFeatureDataframe(feature_names)),
+        ('final_preprocess', preprocess_pipeline),
+    ])
+    return FeatureUnion([
+        ('lvl_1_pred', lvl1_pred),
+        ('trans_features', preprocess)
+    ])
 
 
 def preprocess_pipeline_1(rawdf):
@@ -512,7 +574,7 @@ def preprocess_pipeline_4(rawdf=None):
 
     p_LotFrontage = Pipeline([
         ('groupbyimputer',
-         PdWithinGroupImputerTransformer(func=np.mean, groupby='Neighborhood', x_names=['LotFrontage']))
+         PdWithinGroupImputerTransformer(func=pd.Series.mean, groupby='Neighborhood', x_names=['LotFrontage']))
     ])
 
     # Total SF area
@@ -636,7 +698,7 @@ def preprocess_pipeline_5(rawdf=None):
 
     p_LotFrontage = Pipeline([
         ('groupbyimputer',
-         PdWithinGroupImputerTransformer(func=np.mean, groupby='Neighborhood', x_names=['LotFrontage']))
+         PdWithinGroupImputerTransformer(func=pd.Series.mean, groupby='Neighborhood', x_names=['LotFrontage']))
     ])
 
     # Total SF area
@@ -737,5 +799,3 @@ def preprocess_pipeline_5(rawdf=None):
     ])
 
     return p_preprocess
-
-

@@ -1,26 +1,45 @@
 import pandas as pd
-from own_package.prototyping import lvl1_randomsearch, lvl2_ridgecv, lvl2_xgb_randomsearch
+from own_package.prototyping import lvl1_randomsearch, lvl2_ridgecv, lvl2_xgb_randomsearch,\
+    lvl1_generate_prediction, lvl2_generate_prediction
 from own_package.analysis import analyze_randomsearchresults
 
 
 def selector(case):
     if case == 1:
-        rawdate = pd.read_csv('./inputs/train.csv')
-        lvl1_randomsearch(rawdate, './results/lvl1_randomsearch_pp5', preprocess_pipeline_choice=5)
+        rawdata = pd.read_csv('./inputs/train.csv')
+        lvl1_randomsearch(rawdata, './results/lvl1_randomsearch_pp5', preprocess_pipeline_choice=5)
     elif case == 1.1:
-        analyze_randomsearchresults([f'./results/lvl1_randomsearch_pp{x}' for x in range(1, 5)],
-                                 [f'pp{x}' for x in range(1, 5)])
+        analyze_randomsearchresults([f'./results/lvl1_randomsearch_pp{x}' for x in range(1, 6)],
+                                 [f'pp{x}' for x in range(1, 6)])
     elif case == 2:
-        rawdate = pd.read_csv('./inputs/train.csv')
-        lvl2_ridgecv(rawdate, './results/lvl2np_ridgecv_pp4', preprocess_pipeline_choice=4,
-                     param_dir='./results/lvl1_randomsearch_pp4/results_store.pkl', passthrough=False)
+        rawdata = pd.read_csv('./inputs/train.csv')
+        lvl2_ridgecv(rawdata, './results/lvl2pt_ridgecv_pp5', pp_choice=[5, 5, 5],
+                     param_dir='./results/lvl1_randomsearch_pp5/results_store.pkl', passthrough=True, final_pp_choice=5)
     elif case ==2.1:
         pass
-        analyze_randomsearchresults(['./results/lvl2np_ridgecv_pp4'], 'lvl2npRCV')
+        analyze_randomsearchresults(['./results/lvl2pt_ridgecv_pp5'], 'lvl2npRCV')
     elif case == 3:
-        rawdate = pd.read_csv('./inputs/train.csv')
-        lvl2_xgb_randomsearch(rawdate, './results/lvl2np_xgb_pp4', preprocess_pipeline_choice=4,
-                     param_dir='./results/lvl1_randomsearch_pp4/results_store.pkl', passthrough=False)
+        rawdata = pd.read_csv('./inputs/train.csv')
+        lvl2_xgb_randomsearch(rawdata, './results/lvl2pt_xgb_pp5', pp_choice=5,
+                              param_dir='./results/lvl1_randomsearch_pp5/results_store.pkl', passthrough=True,
+                              final_pp_choice=5)
+    elif case == 0.1:
+        rawdata = pd.read_csv('./inputs/train.csv')
+        x_test = pd.read_csv('./inputs/test.csv')
+        lvl1_generate_prediction(rawdata, x_test, './results/lvl1_randomsearch_pp1', type_='lvl1_randomsearch',
+                                 preprocess_pipeline_choice=1)
+    elif case == 0.2:
+        rawdata = pd.read_csv('./inputs/train.csv')
+        x_test = pd.read_csv('./inputs/test.csv')
+        lvl2_generate_prediction(rawdata, x_test, './results/lvl2np_ridgecv_pp4',
+                                 './results/lvl1_randomsearch_pp4', type_='lvl2_ridgecv',
+                                 preprocess_pipeline_choice=4)
+    elif case == 0.3:
+        rawdata = pd.read_csv('./inputs/train.csv')
+        x_test = pd.read_csv('./inputs/test.csv')
+        lvl2_generate_prediction(rawdata, x_test, './results/lvl2np_xgb_pp4',
+                                 './results/lvl1_randomsearch_pp4', type_='lvl2_xgb',
+                                 preprocess_pipeline_choice=4)
 
 
-selector(1)
+selector(3)

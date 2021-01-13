@@ -21,7 +21,7 @@ def analyze_randomsearchresults(results_dir_store, name_store):
     top_results = pd.DataFrame(top_results).T
     top_results['mean_test_score'] *= -1
     rmsle_results = pd.DataFrame(rmsle_results) * -1
-    top_results['mean_test_score'].plot.barh()
+    top_results['mean_test_score'].sort_values().plot.barh()
     plt.show()
     plt.close()
     plt.subplots(figsize=(10, 5))
