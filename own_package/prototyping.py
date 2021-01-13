@@ -6,7 +6,7 @@ from sklearn.linear_model import RidgeCV
 from sklearn.ensemble import ExtraTreesRegressor, RandomForestRegressor, StackingRegressor
 from sklearn.pipeline import Pipeline, FeatureUnion
 from sklearn.model_selection import RandomizedSearchCV, cross_validate
-
+from vecstack import StackingTransformer
 from sklearn.metrics import make_scorer
 import pickle
 
@@ -195,6 +195,79 @@ def lvl2_xgb_randomsearch(rawdf, results_dir, pp_choice, param_dir, passthrough,
 
     est.fit(x_train, y_train)
     score = {'lvl2_xgb': est.cv_results_}
+    results_dir = create_results_directory(results_dir)
+    with open(f'{results_dir}/results_store.pkl', 'wb') as f:
+        pickle.dump(score, f)
+
+
+def lvl2_xgb_vsrandomsearch(rawdf, results_dir, pp_choice, param_dir, passthrough, final_pp_choice=None):
+    x_train = rawdf.iloc[:, :-1]
+    y_train = rawdf.iloc[:, -1]
+    model_store = ['rf', 'et', 'xgb']
+    model_object = {
+        'xgb': XGBRegressor(),
+        'rf': RandomForestRegressor(),
+        'et': ExtraTreesRegressor()
+    }
+
+    with open(param_dir, 'rb') as f:
+        model_results = pickle.load(f)
+    model_results = {k: pd.DataFrame(v).sort_values('mean_test_score', ascending=False) for k, v in
+                     model_results.items()}
+    model_object = {k: model_object[k].set_params(**{kk.split('__')[1]: vv for kk, vv in v.loc[0, 'params'].items()})
+                    for k, v in model_results.items()}
+
+    preprocess_pipeline = pp_selector(pp_choice)
+
+    lvl1_pipeline = [(model_name,model_object[model_name]) for model_name in model_store]
+
+    stack = StackingTransformer(estimators=lvl1_pipeline,  # base estimators
+                                regression=True,  # regression task (if you need
+                                #     classification - set to False)
+                                variant='A',  # oof for train set, predict test
+                                #     set in each fold and find mean
+                                metric=rmsle,  # metric: callable
+                                n_folds=5,  # number of folds
+                                shuffle=True,  # shuffle the data
+                                random_state=0,  # ensure reproducibility
+                                verbose=0)
+    stack.fit(preprocess_pipeline.fit_transform(x_train), y_train)
+    s_train = stack.transform(preprocess_pipeline.fit_transform(x_train))
+
+    if passthrough:
+        final_est = Pipeline([
+            ('final_preprocess', final_est_pipeline(feature_names=x_train.columns.tolist(),
+                                                    preprocess_pipeline=pp_selector(final_pp_choice),
+                                                    no_of_lvl1=len(lvl1_pipeline))),
+            #('debugger', DebuggerTransformer(info='final')),
+            ('final_est', XGBRegressor())
+        ])
+        est_name = 'final_estimator__final_est__'
+        train = np.concatenate((s_train, x_train.values), axis=1)
+    else:
+        final_est = XGBRegressor()
+        est_name = ''
+        train = s_train
+
+    final_estimator_params = {f'{est_name}n_estimators': scipy.stats.randint(150, 1000),
+                              f'{est_name}learning_rate': scipy.stats.uniform(0.01, 0.59),
+                              f'{est_name}subsample': scipy.stats.uniform(0.3, 0.6),
+                              f'{est_name}max_depth': scipy.stats.randint(1, 16),
+                              f'{est_name}colsample_bytree': scipy.stats.uniform(0.5, 0.4),
+                              f'{est_name}min_child_weight': [1, 2, 3, 4],
+                              f'{est_name}gamma': scipy.stats.expon(scale=0.05),
+                              }
+
+    est = RandomizedSearchCV(final_est,
+                             param_distributions=final_estimator_params,
+                             cv=5,
+                             n_iter=100,
+                             scoring=make_scorer(rmsle, greater_is_better=False),
+                             verbose=1,
+                             n_jobs=-1)
+
+    est.fit(train, y_train)
+    score = {'lvl2ptvs_xgb': est.cv_results_}
     results_dir = create_results_directory(results_dir)
     with open(f'{results_dir}/results_store.pkl', 'wb') as f:
         pickle.dump(score, f)

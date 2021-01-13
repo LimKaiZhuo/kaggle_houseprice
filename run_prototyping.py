@@ -1,5 +1,5 @@
 import pandas as pd
-from own_package.prototyping import lvl1_randomsearch, lvl2_ridgecv, lvl2_xgb_randomsearch,\
+from own_package.prototyping import lvl1_randomsearch, lvl2_ridgecv, lvl2_xgb_randomsearch, lvl2_xgb_vsrandomsearch,\
     lvl1_generate_prediction, lvl2_generate_prediction
 from own_package.analysis import analyze_randomsearchresults
 
@@ -23,6 +23,11 @@ def selector(case):
         lvl2_xgb_randomsearch(rawdata, './results/lvl2pt_xgb_pp5', pp_choice=5,
                               param_dir='./results/lvl1_randomsearch_pp5/results_store.pkl', passthrough=True,
                               final_pp_choice=5)
+    elif case == 3.1:
+        rawdata = pd.read_csv('./inputs/train.csv')
+        lvl2_xgb_vsrandomsearch(rawdata, './results/lvl2ptvs_xgb_pp5', pp_choice=5,
+                              param_dir='./results/lvl1_randomsearch_pp5/results_store.pkl', passthrough=True,
+                              final_pp_choice=5)
     elif case == 0.1:
         rawdata = pd.read_csv('./inputs/train.csv')
         x_test = pd.read_csv('./inputs/test.csv')
@@ -42,4 +47,4 @@ def selector(case):
                                  preprocess_pipeline_choice=4)
 
 
-selector(3)
+selector(3.1)
