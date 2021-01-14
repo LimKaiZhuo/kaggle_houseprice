@@ -242,7 +242,7 @@ def lvl2_xgb_vsrandomsearch(rawdf, results_dir, pp_choice, param_dir, passthroug
             #('debugger', DebuggerTransformer(info='final')),
             ('final_est', XGBRegressor())
         ])
-        est_name = 'final_estimator__final_est__'
+        est_name = 'final_est__'
         train = np.concatenate((s_train, x_train.values), axis=1)
     else:
         final_est = XGBRegressor()
@@ -305,7 +305,8 @@ def lvl1_generate_prediction(rawdf, x_test, result_dir, type_, preprocess_pipeli
             temp.to_csv(f'{result_dir}/{model_name}_predictions.csv', index=False)
 
 
-def lvl2_generate_prediction(rawdf, x_test, results_dir, lvl1_results_dir, type_, preprocess_pipeline_choice):
+def lvl2_generate_prediction(rawdf, x_test, results_dir, lvl1_results_dir, type_, pp_choice,
+                             passthrough=False, final_pp_choice=None):
     x_train = rawdf.iloc[:, :-1]
     y_train = rawdf.iloc[:, -1]
     model_names = ['rf', 'et', 'xgb']
@@ -322,7 +323,7 @@ def lvl2_generate_prediction(rawdf, x_test, results_dir, lvl1_results_dir, type_
 
     lvl1_pipeline = [
         (model_name, Pipeline([
-            ('preprocess', pp_selector(preprocess_pipeline_choice)),
+            ('preprocess', pp_selector(pp_choice)),
             (model_name, model_object[model_name])
         ]).set_params(**model_results[model_name].loc[0, 'params']))
         for model_name in model_names]
@@ -330,7 +331,18 @@ def lvl2_generate_prediction(rawdf, x_test, results_dir, lvl1_results_dir, type_
     if type_ == 'lvl2_ridgecv':
         est = StackingRegressor(estimators=lvl1_pipeline, final_estimator=RidgeCV(), passthrough=False)
     elif type_ == 'lvl2_xgb':
-        est = StackingRegressor(estimators=lvl1_pipeline, final_estimator=XGBRegressor(), passthrough=False)
+        if passthrough:
+            final_est = Pipeline([
+                ('final_preprocess', final_est_pipeline(feature_names=x_train.columns.tolist(),
+                                                        preprocess_pipeline=pp_selector(final_pp_choice),
+                                                        no_of_lvl1=len(lvl1_pipeline))),
+                ('debugger', DebuggerTransformer(info='final')),
+                ('final_est', XGBRegressor())
+            ])
+        else:
+            final_est = XGBRegressor()
+
+        est = StackingRegressor(estimators=lvl1_pipeline, final_estimator=final_est, passthrough=passthrough)
 
         with open(f'{results_dir}/results_store.pkl', 'rb') as f:
             model_results = pickle.load(f)
@@ -342,4 +354,4 @@ def lvl2_generate_prediction(rawdf, x_test, results_dir, lvl1_results_dir, type_
     sub = pd.DataFrame()
     sub['Id'] = x_test['Id']
     sub['SalePrice'] = prediction
-    sub.to_csv(f'{results_dir}/{type_}_pp{preprocess_pipeline_choice}_predictions.csv', index=False)
+    sub.to_csv(f'{results_dir}/{type_}_pp{pp_choice}_predictions.csv', index=False)

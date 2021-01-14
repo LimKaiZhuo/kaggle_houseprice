@@ -17,7 +17,7 @@ def selector(case):
                      param_dir='./results/lvl1_randomsearch_pp5/results_store.pkl', passthrough=True, final_pp_choice=5)
     elif case ==2.1:
         pass
-        analyze_randomsearchresults(['./results/lvl2pt_ridgecv_pp5'], 'lvl2npRCV')
+        analyze_randomsearchresults(['./results/lvl2pt_xgb_pp5'], 'lvl2npRCV')
     elif case == 3:
         rawdata = pd.read_csv('./inputs/train.csv')
         lvl2_xgb_randomsearch(rawdata, './results/lvl2pt_xgb_pp5', pp_choice=5,
@@ -36,15 +36,18 @@ def selector(case):
     elif case == 0.2:
         rawdata = pd.read_csv('./inputs/train.csv')
         x_test = pd.read_csv('./inputs/test.csv')
-        lvl2_generate_prediction(rawdata, x_test, './results/lvl2np_ridgecv_pp4',
-                                 './results/lvl1_randomsearch_pp4', type_='lvl2_ridgecv',
-                                 preprocess_pipeline_choice=4)
+        lvl2_generate_prediction(rawdata, x_test, './results/lvl2np_ridgecv_pp4', './results/lvl1_randomsearch_pp4',
+                                 type_='lvl2_ridgecv', pp_choice=4)
     elif case == 0.3:
         rawdata = pd.read_csv('./inputs/train.csv')
         x_test = pd.read_csv('./inputs/test.csv')
-        lvl2_generate_prediction(rawdata, x_test, './results/lvl2np_xgb_pp4',
-                                 './results/lvl1_randomsearch_pp4', type_='lvl2_xgb',
-                                 preprocess_pipeline_choice=4)
+        lvl2_generate_prediction(rawdata, x_test, './results/lvl2np_xgb_pp4', './results/lvl1_randomsearch_pp4',
+                                 type_='lvl2_xgb', pp_choice=4)
+    elif case == 0.4:
+        rawdata = pd.read_csv('./inputs/train.csv')
+        x_test = pd.read_csv('./inputs/test.csv')
+        lvl2_generate_prediction(rawdata, x_test, './results/lvl2pt_xgb_pp5', './results/lvl1_randomsearch_pp5',
+                                 type_='lvl2_xgb', pp_choice=5, passthrough=True, final_pp_choice=5)
 
 
 selector(3.1)
