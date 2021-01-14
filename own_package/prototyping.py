@@ -348,7 +348,9 @@ def lvl2_generate_prediction(rawdf, x_test, results_dir, lvl1_results_dir, type_
             model_results = pickle.load(f)
         model_results = {k: pd.DataFrame(v).sort_values('mean_test_score', ascending=False) for k, v in
                          model_results.items()}
-        est.set_params(**model_results['lvl2_xgb'].loc[0, 'params'])
+        #est.set_params(
+        #    **{f'final_estimator__{k}': v for k, v in model_results['lvl2ptvs_xgb'].loc[0, 'params'].items()})
+        est.set_params(**model_results['lvl2ptvs_xgb'].loc[0, 'params'])
 
     prediction = est.fit(x_train, y_train).predict(x_test)
     sub = pd.DataFrame()

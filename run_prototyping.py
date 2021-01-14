@@ -17,7 +17,7 @@ def selector(case):
                      param_dir='./results/lvl1_randomsearch_pp5/results_store.pkl', passthrough=True, final_pp_choice=5)
     elif case ==2.1:
         pass
-        analyze_randomsearchresults(['./results/lvl2pt_xgb_pp5'], 'lvl2npRCV')
+        analyze_randomsearchresults(['./results/lvl2ptvs_xgb_pp5'], 'lvl2npRCV')
     elif case == 3:
         rawdata = pd.read_csv('./inputs/train.csv')
         lvl2_xgb_randomsearch(rawdata, './results/lvl2pt_xgb_pp5', pp_choice=5,
@@ -46,8 +46,8 @@ def selector(case):
     elif case == 0.4:
         rawdata = pd.read_csv('./inputs/train.csv')
         x_test = pd.read_csv('./inputs/test.csv')
-        lvl2_generate_prediction(rawdata, x_test, './results/lvl2pt_xgb_pp5', './results/lvl1_randomsearch_pp5',
+        lvl2_generate_prediction(rawdata, x_test, './results/lvl2ptvs_xgb_pp5', './results/lvl1_randomsearch_pp5',
                                  type_='lvl2_xgb', pp_choice=5, passthrough=True, final_pp_choice=5)
 
 
-selector(3.1)
+selector(0.4)
