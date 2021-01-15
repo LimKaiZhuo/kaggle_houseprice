@@ -1,18 +1,15 @@
 import pandas as pd
 import numpy as np
+import scipy as sp
 import scipy.stats
+import scipy.optimize
 import category_encoders as ce
-from xgboost import XGBRegressor
 from collections import Counter
 from sklearn.base import BaseEstimator, TransformerMixin, RegressorMixin, clone
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline, FeatureUnion
-from sklearn.model_selection import RandomizedSearchCV
+from sklearn.compose import TransformedTargetRegressor
 from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder
-from sklearn.metrics import make_scorer
-import pickle
-
-from own_package.others import create_results_directory
 
 
 class FeatureSelector(BaseEstimator, TransformerMixin):
@@ -194,7 +191,7 @@ class GroupingTransformer(BaseEstimator, TransformerMixin):
         self.top_n = top_n
 
     def fit(self, X, y=None):
-        self.group_name = 'Others_'
+        self.group_name_ = 'Others_'
         X = X.fillna('None')  # In case there is still any nan left
         n_samples, n_features = X.shape
         counts = []
@@ -212,7 +209,7 @@ class GroupingTransformer(BaseEstimator, TransformerMixin):
                                    )
                                )
             groups.append(np.array(sorted(set(labels_to_group))))
-            other_in_keys.append(self.group_name in cnts.keys())
+            other_in_keys.append(self.group_name_ in cnts.keys())
         self.counts_ = counts
         self.groups_ = groups
         self.other_in_keys_ = other_in_keys
@@ -224,7 +221,7 @@ class GroupingTransformer(BaseEstimator, TransformerMixin):
         _, n_features = X.shape
         for i in range(n_features):
             mask = np.isin(X_t.iloc[:, i], self.groups_[i])
-            X_t.iloc[mask, i] = self.group_name
+            X_t.iloc[mask, i] = self.group_name_
         return X_t
 
 
@@ -799,3 +796,35 @@ def preprocess_pipeline_5(rawdf=None):
     ])
 
     return p_preprocess
+
+
+def rmsle(y, y0):
+    assert len(y) == len(y0)
+    return np.sqrt(np.mean(np.power(np.log1p(y) - np.log1p(y0), 2)))
+
+
+def get_corr(y_true, y_pred_log, error_func, **kwargs):
+    """Determine correction delta for exp transformation"""
+
+    def cost_func(delta):
+        return error_func(np.exp(delta + y_pred_log), y_true)
+
+    res = sp.optimize.minimize(cost_func, 0., **kwargs)
+    if res.success:
+        return res.x
+    else:
+        raise RuntimeError(f"Finding correction term failed!\n{res}")
+
+
+def corrected_inverse_log(x, corr):
+    return np.exp(x+corr)
+
+
+def label_transformation_1(regr):
+    return TransformedTargetRegressor(regressor=regr, func=lambda x: np.log(x), inverse_func=lambda x: np.exp(x))
+
+
+
+
+
+

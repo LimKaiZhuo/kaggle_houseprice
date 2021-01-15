@@ -7,10 +7,15 @@ from own_package.analysis import analyze_randomsearchresults
 def selector(case):
     if case == 1:
         rawdata = pd.read_csv('./inputs/train.csv')
-        lvl1_randomsearch(rawdata, './results/lvl1_randomsearch_pp5', preprocess_pipeline_choice=5)
+        testdf = pd.read_csv('./inputs/test.csv')
+        lvl1_randomsearch(rawdata, testdf, './results/lvl1_randomsearch_pp5', pp_choice=5)
     elif case == 1.1:
         analyze_randomsearchresults([f'./results/lvl1_randomsearch_pp{x}' for x in range(1, 6)],
                                  [f'pp{x}' for x in range(1, 6)])
+    elif case == 1.3:
+        rawdata = pd.read_csv('./inputs/train.csv')
+        testdf = pd.read_csv('./inputs/test.csv')
+        lvl1_randomsearch(rawdata, testdf, './results/lvl1_randomsearch_pp5_lt1', pp_choice=5, lt_choice=1)
     elif case == 2:
         rawdata = pd.read_csv('./inputs/train.csv')
         lvl2_ridgecv(rawdata, './results/lvl2pt_ridgecv_pp5', pp_choice=[5, 5, 5],
@@ -50,4 +55,4 @@ def selector(case):
                                  type_='lvl2_xgb', pp_choice=5, passthrough=True, final_pp_choice=5)
 
 
-selector(0.4)
+selector(1.3)

@@ -11,7 +11,8 @@ from sklearn.metrics import make_scorer
 import pickle
 
 from own_package.pipeline_helpers import preprocess_pipeline_1, preprocess_pipeline_2, \
-    preprocess_pipeline_3, preprocess_pipeline_4, preprocess_pipeline_5, final_est_pipeline, DebuggerTransformer
+    preprocess_pipeline_3, preprocess_pipeline_4, preprocess_pipeline_5, final_est_pipeline, DebuggerTransformer,\
+    label_transformation_1
 from own_package.others import create_results_directory
 
 
@@ -34,9 +35,19 @@ def pp_selector(preprocess_pipeline_choice, rawdf=None):
     return preprocess_pipeline
 
 
-def lvl1_randomsearch(rawdf, results_dir, preprocess_pipeline_choice):
+def lvl1_randomsearch(rawdf, testdf, results_dir, pp_choice, lt_choice=None):
+    '''
+
+    :param rawdf:
+    :param results_dir:
+    :param pp_choice: preprocessing choice
+    :param lt_choice: label tranformation choice. None is no transformation.
+    :return:
+    '''
+    results_dir = create_results_directory(results_dir)
     x_train = rawdf.iloc[:, :-1]
     y_train = rawdf.iloc[:, -1]
+    x_test = testdf
     model_store = ['rf', 'et', 'xgb']
     model_object = {
         'xgb': XGBRegressor(),
@@ -67,9 +78,14 @@ def lvl1_randomsearch(rawdf, results_dir, preprocess_pipeline_choice):
     }
     results_store = {}
 
-    preprocess_pipeline = pp_selector(preprocess_pipeline_choice, rawdf)
+    preprocess_pipeline = pp_selector(pp_choice, rawdf)
 
     for model_name in model_store:
+        if lt_choice is None:
+            scorer = make_scorer(rmsle, greater_is_better=False)
+        elif lt_choice == 1:
+            y_train = np.log(y_train)
+            scorer = 'neg_root_mean_squared_error'
         model = Pipeline([
             ('preprocess', preprocess_pipeline),
             (model_name, model_object[model_name])
@@ -79,12 +95,22 @@ def lvl1_randomsearch(rawdf, results_dir, preprocess_pipeline_choice):
                                  param_distributions=model_param[model_name],
                                  cv=5,
                                  n_iter=100,
-                                 scoring=make_scorer(rmsle, greater_is_better=False),
+                                 scoring=scorer,
                                  verbose=1,
-                                 n_jobs=-1)
+                                 n_jobs=-1, refit=True)
 
         clf.fit(x_train, y_train)
         results_store[model_name] = clf.cv_results_
+
+        if lt_choice is None:
+            pred_y_test = clf.predict(x_test)
+        elif lt_choice == 1:
+            pred_y_test = np.exp(clf.predict(x_test))
+
+        sub = pd.DataFrame()
+        sub['Id'] = x_test['Id']
+        sub['SalePrice'] = pred_y_test
+        sub.to_csv(f'{results_dir}/{model_name}_{results_dir.split("_")[-1]}_predictions.csv', index=False)
 
     results_dir = create_results_directory(results_dir)
     with open(f'{results_dir}/results_store.pkl', 'wb') as f:
