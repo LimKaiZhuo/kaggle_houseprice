@@ -803,25 +803,8 @@ def rmsle(y, y0):
     return np.sqrt(np.mean(np.power(np.log1p(y) - np.log1p(y0), 2)))
 
 
-def get_corr(y_true, y_pred_log, error_func, **kwargs):
-    """Determine correction delta for exp transformation"""
-
-    def cost_func(delta):
-        return error_func(np.exp(delta + y_pred_log), y_true)
-
-    res = sp.optimize.minimize(cost_func, 0., **kwargs)
-    if res.success:
-        return res.x
-    else:
-        raise RuntimeError(f"Finding correction term failed!\n{res}")
 
 
-def corrected_inverse_log(x, corr):
-    return np.exp(x+corr)
-
-
-def label_transformation_1(regr):
-    return TransformedTargetRegressor(regressor=regr, func=lambda x: np.log(x), inverse_func=lambda x: np.exp(x))
 
 
 

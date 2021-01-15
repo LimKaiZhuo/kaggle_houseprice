@@ -1,6 +1,8 @@
 import pandas as pd
 import numpy as np
+import scipy as sp
 import scipy.stats
+import scipy.optimize
 from xgboost import XGBRegressor
 from sklearn.linear_model import RidgeCV
 from sklearn.ensemble import ExtraTreesRegressor, RandomForestRegressor, StackingRegressor
@@ -11,14 +13,27 @@ from sklearn.metrics import make_scorer
 import pickle
 
 from own_package.pipeline_helpers import preprocess_pipeline_1, preprocess_pipeline_2, \
-    preprocess_pipeline_3, preprocess_pipeline_4, preprocess_pipeline_5, final_est_pipeline, DebuggerTransformer,\
-    label_transformation_1
+    preprocess_pipeline_3, preprocess_pipeline_4, preprocess_pipeline_5, final_est_pipeline, DebuggerTransformer
 from own_package.others import create_results_directory
 
 
 def rmsle(y, y0):
     assert len(y) == len(y0)
     return np.sqrt(np.mean(np.power(np.log1p(y) - np.log1p(y0), 2)))
+
+
+def get_corr(y_true, y_pred_log, error_func, **kwargs):
+    """Determine correction delta for exp transformation"""
+
+    def cost_func(delta):
+        return error_func(np.exp(delta + y_pred_log), y_true)
+
+    res = sp.optimize.minimize(cost_func, 0.01, **kwargs)
+    if res.success:
+        return res.x
+    else:
+        raise RuntimeError(f"Finding correction term failed!\n{res}")
+
 
 
 def pp_selector(preprocess_pipeline_choice, rawdf=None):
@@ -83,7 +98,7 @@ def lvl1_randomsearch(rawdf, testdf, results_dir, pp_choice, lt_choice=None):
     for model_name in model_store:
         if lt_choice is None:
             scorer = make_scorer(rmsle, greater_is_better=False)
-        elif lt_choice == 1:
+        elif lt_choice == 1 or lt_choice == 2:
             y_train = np.log(y_train)
             scorer = 'neg_root_mean_squared_error'
         model = Pipeline([
@@ -94,7 +109,7 @@ def lvl1_randomsearch(rawdf, testdf, results_dir, pp_choice, lt_choice=None):
         clf = RandomizedSearchCV(model,
                                  param_distributions=model_param[model_name],
                                  cv=5,
-                                 n_iter=100,
+                                 n_iter=5,
                                  scoring=scorer,
                                  verbose=1,
                                  n_jobs=-1, refit=True)
@@ -106,6 +121,10 @@ def lvl1_randomsearch(rawdf, testdf, results_dir, pp_choice, lt_choice=None):
             pred_y_test = clf.predict(x_test)
         elif lt_choice == 1:
             pred_y_test = np.exp(clf.predict(x_test))
+        elif lt_choice == 2:
+            pred_logy_test = clf.predict(x_test)
+            pred_y_test = np.exp(pred_logy_test + get_corr(np.exp(y_train), clf.predict(x_train),
+                                                           error_func=rmsle, options={'gtol': 1e-04}))
 
         sub = pd.DataFrame()
         sub['Id'] = x_test['Id']

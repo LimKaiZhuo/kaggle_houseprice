@@ -15,7 +15,7 @@ def selector(case):
     elif case == 1.3:
         rawdata = pd.read_csv('./inputs/train.csv')
         testdf = pd.read_csv('./inputs/test.csv')
-        lvl1_randomsearch(rawdata, testdf, './results/lvl1_randomsearch_pp5_lt1', pp_choice=5, lt_choice=1)
+        lvl1_randomsearch(rawdata, testdf, './results/lvl1_randomsearch_pp5_lt2', pp_choice=5, lt_choice=2)
     elif case == 2:
         rawdata = pd.read_csv('./inputs/train.csv')
         lvl2_ridgecv(rawdata, './results/lvl2pt_ridgecv_pp5', pp_choice=[5, 5, 5],
