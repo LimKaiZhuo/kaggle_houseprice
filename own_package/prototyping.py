@@ -130,9 +130,8 @@ def lvl1_randomsearch(rawdf, testdf, results_dir, pp_choice, lt_choice=None):
         sub = pd.DataFrame()
         sub['Id'] = x_test['Id']
         sub['SalePrice'] = pred_y_test
-        sub.to_csv(f'{results_dir}/{model_name}_{results_dir.split("_")[-1]}_predictions.csv', index=False)
+        sub.to_csv(f'{results_dir}/{model_name}_{results_dir.split("/")[-1]}_predictions.csv', index=False)
 
-    results_dir = create_results_directory(results_dir)
     with open(f'{results_dir}/results_store.pkl', 'wb') as f:
         pickle.dump(results_store, f)
 
