@@ -95,12 +95,13 @@ def lvl1_randomsearch(rawdf, testdf, results_dir, pp_choice, lt_choice=None):
 
     preprocess_pipeline = pp_selector(pp_choice, rawdf)
 
+    if lt_choice is None:
+        scorer = make_scorer(rmsle, greater_is_better=False)
+    elif lt_choice == 1 or lt_choice == 2:
+        y_train = np.log(y_train)
+        scorer = 'neg_root_mean_squared_error'
+
     for model_name in model_store:
-        if lt_choice is None:
-            scorer = make_scorer(rmsle, greater_is_better=False)
-        elif lt_choice == 1 or lt_choice == 2:
-            y_train = np.log(y_train)
-            scorer = 'neg_root_mean_squared_error'
         model = Pipeline([
             ('preprocess', preprocess_pipeline),
             (model_name, model_object[model_name])
@@ -109,7 +110,7 @@ def lvl1_randomsearch(rawdf, testdf, results_dir, pp_choice, lt_choice=None):
         clf = RandomizedSearchCV(model,
                                  param_distributions=model_param[model_name],
                                  cv=5,
-                                 n_iter=5,
+                                 n_iter=100,
                                  scoring=scorer,
                                  verbose=1,
                                  n_jobs=-1, refit=True)
